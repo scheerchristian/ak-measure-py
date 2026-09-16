@@ -25,3 +25,10 @@ def save(name, data):
     CONFIG_DIR.mkdir(exist_ok=True)
     with open(CONFIG_DIR / f"{name}.yaml", "w") as f:
         yaml.safe_dump(data, f, sort_keys=False)
+
+
+def init():
+    """Materialize device/settings/meta.yaml in ./config, without running anything."""
+    for name in ("device", "settings", "meta"):
+        load(name)
+        print(f"config/{name}.yaml ready")

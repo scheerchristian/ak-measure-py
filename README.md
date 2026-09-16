@@ -23,8 +23,9 @@ any Python >=3.10 environment.
 
 ## Configuration
 
-Settings live in `./config` (created on first run from the package's
-built-in defaults if missing):
+Settings live in `./config`, relative to wherever you run the commands from
+(so a different project gets its own `config/`, independent of where
+`akmeasure` is installed):
 
 - `device.yaml` - I/O device and channels. Set manually, or run
   `akmeasure-io-setup` for a GUI to pick the output/input device and
@@ -34,6 +35,19 @@ built-in defaults if missing):
   level calibration (`false`/`numeric`/`measured`).
 - `meta.yaml` - free-text info about the measurement (room, mic, source,
   ...), saved alongside the data.
+
+### Using it in a new project
+
+With `akmeasure` installed (into the environment that project uses), from
+that project's directory:
+
+```
+akmeasure-init      # writes config/{device,settings,meta}.yaml from the package defaults
+akmeasure-io-setup  # GUI to pick the audio device and channels -> config/device.yaml
+```
+
+Then edit `config/settings.yaml` and `config/meta.yaml` by hand as needed
+(sweep length, levels, reference/calibration, contact/room/... info).
 
 ## Usage
 

@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 akmeasure = "akmeasure.measure:main"
 akmeasure-io-setup = "akmeasure.io_setup:main"
+akmeasure-init = "akmeasure.config:init"
 
 [tool.setuptools.packages.find]
 where = ["src"]
