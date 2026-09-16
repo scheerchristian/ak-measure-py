@@ -5,6 +5,10 @@ an exponential sweep. Uses [pyfar](https://pyfar.org) for sweep generation,
 deconvolution, filtering and file I/O, and `sounddevice` for playback and
 recording.
 
+`akmeasure` is a regular, `pip install`-able Python package (`src/akmeasure/`),
+so it can also be imported and reused, e.g.
+`from akmeasure.measure import deconvolve, play_rec`.
+
 ## Setup
 
 ```
@@ -12,13 +16,19 @@ conda env create -f environment.yml
 conda activate ak-measure-py
 ```
 
+This installs `akmeasure` itself in editable mode (see `pyproject.toml`), so
+`import akmeasure` and the `akmeasure`/`akmeasure-io-setup` commands below
+are both available. Without conda, `pip install -e .` works the same way in
+any Python >=3.10 environment.
+
 ## Configuration
 
-All settings live in `config/`:
+Settings live in `./config` (created on first run from the package's
+built-in defaults if missing):
 
 - `device.yaml` - I/O device and channels. Set manually, or run
-  `python3 akmeasure/io_setup.py` for a GUI to pick the output/input device
-  and channels from the devices available on your system.
+  `akmeasure-io-setup` for a GUI to pick the output/input device and
+  channels from the devices available on your system.
 - `settings.yaml` - sweep, level, averaging, clipping, channel mode
   (`single`/`all`), reference measurement (`false`/`latency`/`complex`) and
   level calibration (`false`/`numeric`/`measured`).
@@ -28,8 +38,10 @@ All settings live in `config/`:
 ## Usage
 
 ```
-python3 measure.py
+akmeasure
 ```
+
+(equivalently: `python3 -m akmeasure.measure`)
 
 In `channel_mode: single`, each output channel (source) is measured on its
 own and saved to its own file, `measurements/measurement_<timestamp>_src<n>.far`,

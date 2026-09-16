@@ -1,0 +1,11 @@
+# information about the measurement, saved alongside the data.
+# soundcard is filled in automatically from config/device.yaml if left empty.
+contact: Christian Scheer
+room: Asimov Lab TU Berlin
+temperature: 20
+humidity: 47
+soundcard:
+amplifier: Soundcard's internal
+mic_preamp: Soundcard's internal
+source: Genelec 8331 AP
+receiver: Neumann KU81

@@ -1,4 +1,5 @@
 __pycache__/
 *.pyc
 measurements/
+*.egg-info/
 CLAUDE.md

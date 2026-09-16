@@ -1,5 +1,8 @@
-# audio I/O device and channels, set manually or via akmeasure/io_setup.py
-output_device: default
-input_device: default
-output_channels: [1, 2]
-input_channels: [1, 2]
+output_device: jack
+input_device: jack
+output_channels:
+- 1
+- 2
+input_channels:
+- 1
+- 2

@@ -1,0 +1,5 @@
+# audio I/O device and channels, set manually or via akmeasure-io-setup
+output_device: default
+input_device: default
+output_channels: [1]
+input_channels: [1]
