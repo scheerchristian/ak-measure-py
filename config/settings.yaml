@@ -13,13 +13,13 @@ level:
   average: 1
 
 channel_mode: single        # single: measure output_channels one after another
-                             # all: play all output_channels at once
+                            # all: play all output_channels at once
 subsonic_filter: true       # 20 Hz high-pass on the resulting IR
 plot: true                  # plot excitation, reference and IR, and save the plots
 
 save:
   excitation: true          # save the excitation sweep as part of the .far file
-  raw: false                 # also save the raw (non-deconvolved) recordings
+  raw: false                # also save the raw (non-deconvolved) recordings
 
 # false, 'latency' (measure and correct system delay) or 'complex' (measure
 # and correct full transfer function of the reference channel)

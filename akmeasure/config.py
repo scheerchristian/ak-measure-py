@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-CONFIG_DIR = Path(__file__).parent / "config"
+CONFIG_DIR = Path(__file__).parent.parent / "config"
 
 
 def load(name):

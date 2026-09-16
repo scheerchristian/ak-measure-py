@@ -1,14 +1,13 @@
 """GUI to pick the audio input/output device and channels.
 
-Saves the selection to config/device.yaml, used by akmeasure_demo.py.
+Saves the selection to config/device.yaml, used by measure.py.
 """
 
 import tkinter as tk
 from tkinter import messagebox, ttk
 
 import sounddevice as sd
-
-from akmeasure_config import load, save
+from config import load, save
 
 devices = sd.query_devices()
 out_devices = [d["name"] for d in devices if d["max_output_channels"] > 0]

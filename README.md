@@ -17,7 +17,7 @@ conda activate ak-measure-py
 All settings live in `config/`:
 
 - `device.yaml` - I/O device and channels. Set manually, or run
-  `python3 akmeasure_io_setup.py` for a GUI to pick the output/input device
+  `python3 akmeasure/io_setup.py` for a GUI to pick the output/input device
   and channels from the devices available on your system.
 - `settings.yaml` - sweep, level, averaging, clipping, channel mode
   (`single`/`all`), reference measurement (`false`/`latency`/`complex`) and
@@ -28,11 +28,17 @@ All settings live in `config/`:
 ## Usage
 
 ```
-python3 akmeasure_demo.py
+python3 measure.py
 ```
 
-The excitation sweep, the impulse response(s), and (if used) the reference
-and calibration recordings are saved to
-`measurements/measurement_<timestamp>.far` (pyfar's native format, readable
-with `pyfar.io.read`), plus a plot as `measurement_<timestamp>_ir.png` if
-`plot: true`.
+In `channel_mode: single`, each output channel (source) is measured on its
+own and saved to its own file, `measurements/measurement_<timestamp>_src<n>.far`,
+with the `ir` channels representing the input channels. In `channel_mode:
+all`, all output channels play at once and everything is saved to a single
+`measurements/measurement_<timestamp>.far`.
+
+Each file is a pyfar native `.far` file (readable with `pyfar.io.read`)
+containing the `ir` plus, depending on `settings.yaml`, the excitation
+sweep, the raw (non-deconvolved) recording, and the reference/calibration
+recordings. If `plot: true`, the excitation, reference and each IR are also
+plotted and saved as PNGs next to the `.far` files.

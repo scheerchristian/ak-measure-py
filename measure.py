@@ -5,7 +5,7 @@ optionally measure a reference and a level calibration, play/record,
 deconvolve, post-process, plot and save.
 
 Settings live in config/device.yaml (I/O device and channels, see also
-akmeasure_io_setup.py), config/settings.yaml (measurement settings) and
+akmeasure/io_setup.py), config/settings.yaml (measurement settings) and
 config/meta.yaml (free-text info about the measurement).
 """
 
@@ -17,7 +17,7 @@ import numpy as np
 import pyfar as pf
 import sounddevice as sd
 
-from akmeasure_config import load
+from akmeasure.config import load
 
 device_cfg = load("device")
 settings = load("settings")
@@ -147,17 +147,19 @@ if calib_cfg["mode"]:
 
     print(f"sensitivity: {20 * np.log10(calibrate_amplitude_per_pa):.2f} dBFS per Pascal")
 
-# ----------------------------------------------------------------- 4. measure IRs
+# ------------------------------------------------- 4. measure and save per source
+# each output channel group (source) gets its own .far file, with the ir
+# channels representing the input channels
+if not meta.get("soundcard"):
+    meta["soundcard"] = f"out: {device_cfg['output_device']} / in: {device_cfg['input_device']}"
+
 channel_groups = [out_channels] if settings["channel_mode"] == "all" else [[ch] for ch in out_channels]
-irs = []
-raws = []
 
 for group in channel_groups:
     print(f"measuring output channel(s) {group}...")
     rec = play_rec(excitation, group, in_channels, level_cfg["output_db"],
                     level_cfg["clip_reduction_db"], level_cfg["average"])
     recorded = pf.Signal(rec.T, fs)
-    raws.append(recorded)
 
     if ref_cfg["type"] == "complex":
         ir = deconvolve(recorded, reference_signal)
@@ -171,25 +173,20 @@ for group in channel_groups:
     if settings["subsonic_filter"]:
         ir = pf.dsp.filter.butterworth(ir, N=4, frequency=20, btype="highpass")
 
-    irs.append(ir)
+    src = "src" + "-".join(map(str, group)) if len(channel_groups) > 1 else ""
+    name = f"measurement_{timestamp}" + (f"_{src}" if src else "")
+    plot_and_save(ir, f"{src}_ir" if src else "ir")
 
-ir = pf.Signal(np.concatenate([i.time for i in irs], axis=0), fs)
-plot_and_save(ir, "ir")
+    data = {"ir": ir, **{k: v for k, v in meta.items() if v is not None}}
+    if save_cfg["excitation"]:
+        data["excitation"] = sweep
+    if save_cfg["raw"]:
+        data["raw"] = recorded
+    if reference_signal is not None:
+        data["reference"] = reference_signal
+    if calibration_signal is not None:
+        data["calibration"] = calibration_signal
 
-# --------------------------------------------------------------------- 5. save
-if not meta.get("soundcard"):
-    meta["soundcard"] = f"out: {device_cfg['output_device']} / in: {device_cfg['input_device']}"
-
-data = {"ir": ir, **{k: v for k, v in meta.items() if v is not None}}
-if save_cfg["excitation"]:
-    data["excitation"] = sweep
-if save_cfg["raw"]:
-    data["raw"] = pf.Signal(np.concatenate([r.time for r in raws], axis=0), fs)
-if reference_signal is not None:
-    data["reference"] = reference_signal
-if calibration_signal is not None:
-    data["calibration"] = calibration_signal
-
-file = out_dir / f"measurement_{timestamp}.far"
-pf.io.write(file, **data)
-print(f"saved to {file}")
+    file = out_dir / f"{name}.far"
+    pf.io.write(file, **data)
+    print(f"saved to {file}")
