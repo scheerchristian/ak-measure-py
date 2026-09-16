@@ -22,10 +22,11 @@ from akmeasure.config import load
 
 def play_rec(signal, out_ch, in_ch, fs, device, level_db, clip_reduction_db, average=1):
     """Play `signal` on out_ch, record in_ch, averaging with automatic level
-    reduction on clipping (compensated afterwards), as in AKmeasureIR.m."""
+    reduction on clipping (compensated afterwards), as in AKmeasureIR.m.
+    Returns the average and the individual takes (average, channels, samples)."""
     n_avg = 0
     n_clip = 0
-    rec_sum = None
+    takes = []
     while n_avg < average:
         gain = 10 ** (level_db / 20) * 10 ** (-n_clip * clip_reduction_db / 20)
         buf = sd.playrec(signal * gain, samplerate=fs, device=device,
@@ -34,11 +35,12 @@ def play_rec(signal, out_ch, in_ch, fs, device, level_db, clip_reduction_db, ave
             print("clipping detected, reducing level...")
             n_clip += 1
             n_avg = 0
-            rec_sum = None
+            takes = []
             continue
-        rec_sum = buf if rec_sum is None else rec_sum + buf
+        takes.append(buf)
         n_avg += 1
-    return rec_sum / average * 10 ** (n_clip * clip_reduction_db / 20)
+    takes = np.stack(takes).transpose(0, 2, 1) * 10 ** (n_clip * clip_reduction_db / 20)
+    return takes.mean(axis=0), takes
 
 
 def deconvolve(y, x, freq_range, regu_within=1e-3):
@@ -104,7 +106,7 @@ def main():
             raise ValueError("reference.type must be false, 'latency' or 'complex'")
 
         rec = play_rec(ref_excitation, [ref_cfg["output_channel"]], [ref_cfg["input_channel"]],
-                        fs, device, ref_cfg["output_level_db"], ref_cfg["clip_reduction_db"])[:, 0]
+                        fs, device, ref_cfg["output_level_db"], ref_cfg["clip_reduction_db"])[0][0]
 
         if ref_cfg["type"] == "complex":
             reference_signal = pf.Signal(rec, fs)
@@ -157,9 +159,9 @@ def main():
 
     for group in channel_groups:
         print(f"measuring output channel(s) {group}...")
-        rec = play_rec(excitation, group, in_channels, fs, device, level_cfg["output_db"],
-                        level_cfg["clip_reduction_db"], level_cfg["average"])
-        recorded = pf.Signal(rec.T, fs)
+        rec, takes = play_rec(excitation, group, in_channels, fs, device, level_cfg["output_db"],
+                              level_cfg["clip_reduction_db"], level_cfg["average"])
+        recorded = pf.Signal(rec, fs)
 
         if ref_cfg["type"] == "complex":
             ir = deconvolve(recorded, reference_signal, freq_range, regu_within)
@@ -181,7 +183,7 @@ def main():
         if save_cfg["excitation"]:
             data["excitation"] = sweep
         if save_cfg["raw"]:
-            data["raw"] = recorded
+            data["raw"] = pf.Signal(takes, fs)
         if reference_signal is not None:
             data["reference"] = reference_signal
         if calibration_signal is not None:
