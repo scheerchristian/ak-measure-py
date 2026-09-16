@@ -1,0 +1,10 @@
+[project]
+name = "ak-measure-py"
+version = "0.1.0"
+description = "Python port of AKtools' AKmeasureDemo.m impulse response measurement"
+requires-python = ">=3.10"
+dependencies = [
+    "pyfar",
+    "sounddevice",
+    "numpy",
+]
