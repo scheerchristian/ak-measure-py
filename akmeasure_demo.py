@@ -1,78 +1,179 @@
 """Python port of AKtools' AKmeasureDemo.m.
 
-Measures an impulse response (IR) with an exponential sweep: generate the
-sweep, play it back while recording, deconvolve, and save the result.
-Relies on pyfar for signal generation, deconvolution, filtering and file
-I/O, and on sounddevice for playback/recording.
+Measures impulse response(s) with an exponential sweep: generate the sweep,
+optionally measure a reference and a level calibration, play/record,
+deconvolve, post-process, plot and save.
+
+Settings live in config/device.yaml (I/O device and channels, see also
+akmeasure_io_setup.py), config/settings.yaml (measurement settings) and
+config/meta.yaml (free-text info about the measurement).
 """
 
 from datetime import datetime
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pyfar as pf
 import sounddevice as sd
 
-# --------------------------------------------------------------- 1. settings
-fs = 44100                     # sampling rate in Hz
+from akmeasure_config import load
+
+device_cfg = load("device")
+settings = load("settings")
+meta = load("meta")
+
+fs = settings["sampling_rate"]
+sweep_cfg = settings["sweep"]
+level_cfg = settings["level"]
+ref_cfg = settings["reference"]
+calib_cfg = settings["calibration"]
+freq_range = sweep_cfg["frequency_range"]
+regu_inside = 10 ** (-sweep_cfg["dynamic_db"] / 20)
+
+device = (device_cfg["input_device"], device_cfg["output_device"])
+out_channels = device_cfg["output_channels"]
+in_channels = device_cfg["input_channels"]
+
 out_dir = Path("measurements")
 out_dir.mkdir(exist_ok=True)
 
-sweep_n_samples = 2**18        # sweep length in samples
-freq_range = [20, 20000]       # sweep frequency range in Hz
-t_start = 0.06                 # silence before sweep in s
-t_gap = 2.0                    # silence after sweep in s (> reverberation time)
-dynamic = 40                   # deconvolution regularization dynamic in dB
 
-ch_out = 1                     # output channel
-ch_in = 1                      # input channel
-level_out_db = -40             # playback level in dBFS
-average = 1                    # number of averages
+def play_rec(signal, out_ch, in_ch, level_db, clip_reduction_db, average=1):
+    """Play `signal` on out_ch, record in_ch, averaging with automatic level
+    reduction on clipping (compensated afterwards), as in AKmeasureIR.m."""
+    n_avg = 0
+    n_clip = 0
+    rec_sum = None
+    while n_avg < average:
+        gain = 10 ** (level_db / 20) * 10 ** (-n_clip * clip_reduction_db / 20)
+        buf = sd.playrec(signal * gain, samplerate=fs, device=device,
+                          output_mapping=out_ch, input_mapping=in_ch, blocking=True)
+        if np.max(np.abs(buf)) >= 0.9999:
+            print("clipping detected, reducing level...")
+            n_clip += 1
+            n_avg = 0
+            rec_sum = None
+            continue
+        rec_sum = buf if rec_sum is None else rec_sum + buf
+        n_avg += 1
+    return rec_sum / average * 10 ** (n_clip * clip_reduction_db / 20)
 
-subsonic = True                # apply a 20 Hz high-pass to the IR
-calibration_dbfs_per_pa = None # dBFS (peak) at 1 Pascal, or None to skip
 
-# --------------------------------------------------------- 2. excitation signal
-sweep = pf.signals.exponential_sweep_time(sweep_n_samples, freq_range, sampling_rate=fs)
+# --------------------------------------------------------- 1. excitation signal
+sweep = pf.signals.exponential_sweep_time(sweep_cfg["n_samples"], freq_range, sampling_rate=fs)
 excitation = np.concatenate([
-    np.zeros(int(t_start * fs)),
-    sweep.time[0] * 10 ** (level_out_db / 20),
-    np.zeros(int(t_gap * fs)),
+    np.zeros(int(sweep_cfg["t_start"] * fs)),
+    sweep.time[0],
+    np.zeros(int(sweep_cfg["t_gap"] * fs)),
 ])
 
-# ----------------------------------------------------------------- 3. measure
-rec = np.zeros(len(excitation))
-for _ in range(average):
-    buf = sd.playrec(excitation, samplerate=fs, input_mapping=[ch_in],
-                      output_mapping=[ch_out], blocking=True)[:, 0]
-    if np.max(np.abs(buf)) >= 0.9999:
-        print("warning: clipping detected, reduce level_out_db")
-    rec += buf
-rec /= average
+# ------------------------------------------------------- 2. reference measurement
+reference_signal = None
+latency = 0
 
-recorded = pf.Signal(rec, fs)
+if ref_cfg["type"]:
+    print(f"reference measurement ({ref_cfg['type']})...")
+    if ref_cfg["type"] == "latency":
+        impulse_offset = 64
+        ref_excitation = np.zeros(fs)
+        ref_excitation[impulse_offset] = 1.0
+    elif ref_cfg["type"] == "complex":
+        ref_excitation = excitation
+    else:
+        raise ValueError("reference.type must be false, 'latency' or 'complex'")
 
-# ------------------------------------------------------------ 4. deconvolution
-ir = pf.dsp.deconvolve(recorded, pf.Signal(excitation, fs),
-                        frequency_range=freq_range,
-                        regu_inside=10 ** (-dynamic / 20))
+    rec = play_rec(ref_excitation, [ref_cfg["output_channel"]], [ref_cfg["input_channel"]],
+                    ref_cfg["output_level_db"], ref_cfg["clip_reduction_db"])[:, 0]
 
-# --------------------------------------------------------- 5. post-processing
-if calibration_dbfs_per_pa is not None:
-    ir = ir / 10 ** (calibration_dbfs_per_pa / 20)
+    if ref_cfg["type"] == "complex":
+        reference_signal = pf.Signal(rec, fs)
+        latency_signal = pf.dsp.deconvolve(reference_signal, sweep, frequency_range=freq_range,
+                                            regu_inside=regu_inside)
+        latency_time = latency_signal.time[0]
+    else:
+        rec = np.roll(rec, -impulse_offset)
+        reference_signal = pf.Signal(rec, fs)
+        latency_time = rec
 
-if subsonic:
-    ir = pf.dsp.filter.butterworth(ir, N=4, frequency=20, btype="highpass")
+    latency = int(np.argmax(np.abs(latency_time[: int(0.5 * fs)])))
+    print(f"latency: {latency} samples")
 
-# ------------------------------------------------------------------- 6. save
-meta = {
-    "fs": fs, "ch_out": ch_out, "ch_in": ch_in,
-    "level_out_db": level_out_db, "average": average, "dynamic": dynamic,
-}
-if calibration_dbfs_per_pa is not None:
-    meta["calibration_dbfs_per_pa"] = calibration_dbfs_per_pa
+# ---------------------------------------------------------- 3. level calibration
+calibrate_amplitude_per_pa = None
+calibration_signal = None
+
+if calib_cfg["mode"]:
+    print(f"level calibration ({calib_cfg['mode']})...")
+    if calib_cfg["mode"] == "measured":
+        input("Apply calibrator to microphone and press Enter...")
+        duration_samples = int(5 * fs)
+        rec = sd.rec(duration_samples, samplerate=fs, mapping=[calib_cfg["input_channel"]],
+                      device=device_cfg["input_device"], blocking=True)[:, 0]
+        if np.max(np.abs(rec)) >= 0.9999:
+            raise RuntimeError("Input signal clipped, decrease the calibration level")
+        level_in = np.sqrt(np.mean(rec**2)) * np.sqrt(2)
+        calibrate_amplitude_per_pa = level_in / (2e-5 * 10 ** (calib_cfg["level_db_spl"] / 20))
+        calibration_signal = pf.Signal(rec, fs)
+    elif calib_cfg["mode"] == "numeric":
+        calibrate_amplitude_per_pa = 10 ** (calib_cfg["numeric_dbfs_per_pa"] / 20)
+    else:
+        raise ValueError("calibration.mode must be false, 'numeric' or 'measured'")
+
+    # compensate for the frequency response of a 'complex' reference measurement
+    if reference_signal is not None and ref_cfg["type"] == "complex":
+        tf = pf.dsp.deconvolve(reference_signal, sweep, frequency_range=freq_range,
+                                regu_inside=regu_inside)
+        idx = np.argmin(np.abs(tf.frequencies - calib_cfg["frequency"]))
+        calibrate_amplitude_per_pa /= np.abs(tf.freq[0, idx])
+
+    print(f"sensitivity: {20 * np.log10(calibrate_amplitude_per_pa):.2f} dBFS per Pascal")
+
+# ----------------------------------------------------------------- 4. measure IRs
+channel_groups = [out_channels] if settings["channel_mode"] == "all" else [[ch] for ch in out_channels]
+irs = []
+
+for group in channel_groups:
+    print(f"measuring output channel(s) {group}...")
+    rec = play_rec(excitation, group, in_channels, level_cfg["output_db"],
+                    level_cfg["clip_reduction_db"], level_cfg["average"])
+    recorded = pf.Signal(rec.T, fs)
+
+    if ref_cfg["type"] == "complex":
+        ir = pf.dsp.deconvolve(recorded, reference_signal, frequency_range=freq_range,
+                                regu_inside=regu_inside)
+    else:
+        ir = pf.dsp.deconvolve(recorded, sweep, frequency_range=freq_range, regu_inside=regu_inside)
+        if ref_cfg["type"] == "latency":
+            ir = pf.dsp.time_shift(ir, -latency, mode="cyclic")
+
+    if calibrate_amplitude_per_pa:
+        ir = ir / calibrate_amplitude_per_pa
+    if settings["subsonic_filter"]:
+        ir = pf.dsp.filter.butterworth(ir, N=4, frequency=20, btype="highpass")
+
+    irs.append(ir)
+
+ir = pf.Signal(np.concatenate([i.time for i in irs], axis=0), fs)
 
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+# --------------------------------------------------------------------- 5. plot
+if settings["plot"]:
+    pf.plot.time_freq(ir)
+    plt.savefig(out_dir / f"measurement_{timestamp}_ir.png")
+    plt.show()
+
+# --------------------------------------------------------------------- 6. save
+if not meta.get("soundcard"):
+    meta["soundcard"] = f"out: {device_cfg['output_device']} / in: {device_cfg['input_device']}"
+
+data = {"sweep": sweep, "ir": ir, **{k: v for k, v in meta.items() if v is not None}}
+if reference_signal is not None:
+    data["reference"] = reference_signal
+if calibration_signal is not None:
+    data["calibration"] = calibration_signal
+
 file = out_dir / f"measurement_{timestamp}.far"
-pf.io.write(file, sweep=sweep, recording=recorded, ir=ir, **meta)
+pf.io.write(file, **data)
 print(f"saved to {file}")

@@ -7,4 +7,6 @@ dependencies = [
     "pyfar",
     "sounddevice",
     "numpy",
+    "matplotlib",
+    "pyyaml",
 ]

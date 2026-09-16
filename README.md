@@ -13,15 +13,27 @@ source .venv/bin/activate
 pip install -e .
 ```
 
-## Usage
+## Configuration
 
-Edit the settings at the top of `akmeasure_demo.py` (sampling rate, channels,
-levels, ...) and run:
+All settings live in `config/`:
+
+- `device.yaml` - I/O device and channels. Set manually, or run
+  `python3 akmeasure_io_setup.py` for a GUI to pick the output/input device
+  and channels from the devices available on your system.
+- `settings.yaml` - sweep, level, averaging, clipping, channel mode
+  (`single`/`all`), reference measurement (`false`/`latency`/`complex`) and
+  level calibration (`false`/`numeric`/`measured`).
+- `meta.yaml` - free-text info about the measurement (room, mic, source,
+  ...), saved alongside the data.
+
+## Usage
 
 ```
 python3 akmeasure_demo.py
 ```
 
-The excitation sweep, the raw recording and the deconvolved impulse response
-are saved to `measurements/measurement_<timestamp>.far` (pyfar's native
-format, readable with `pyfar.io.read`).
+The excitation sweep, the impulse response(s), and (if used) the reference
+and calibration recordings are saved to
+`measurements/measurement_<timestamp>.far` (pyfar's native format, readable
+with `pyfar.io.read`), plus a plot as `measurement_<timestamp>_ir.png` if
+`plot: true`.

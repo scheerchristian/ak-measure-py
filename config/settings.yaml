@@ -1,0 +1,36 @@
+sampling_rate: 48000
+
+sweep:
+  n_samples: 262144        # sweep length in samples
+  frequency_range: [20, 20000]
+  t_start: 0.06             # silence before sweep in s
+  t_gap: 2.0                # silence after sweep in s (> reverberation time)
+  dynamic_db: 40            # deconvolution regularization dynamic in dB
+
+level:
+  output_db: -40
+  clip_reduction_db: 3      # automatic level reduction on clipping, compensated afterwards
+  average: 1
+
+channel_mode: single        # single: measure output_channels one after another
+                             # all: play all output_channels at once
+subsonic_filter: true       # 20 Hz high-pass on the resulting IR
+plot: true                  # plot the resulting impulse response(s)
+
+# false, 'latency' (measure and correct system delay) or 'complex' (measure
+# and correct full transfer function of the reference channel)
+reference:
+  type: false
+  output_channel: 2
+  input_channel: 2
+  output_level_db: -10
+  clip_reduction_db: 6
+
+# false, 'numeric' (enter the known sensitivity) or 'measured' (record a
+# calibrator tone and derive the sensitivity from it)
+calibration:
+  mode: false
+  input_channel: 1
+  frequency: 1000
+  level_db_spl: 94
+  numeric_dbfs_per_pa: 94
