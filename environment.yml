@@ -1,0 +1,12 @@
+name: ak-measure-py
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - numpy
+  - matplotlib
+  - pyyaml
+  - python-sounddevice
+  - pip
+  - pip:
+      - pyfar

@@ -28,8 +28,9 @@ sweep_cfg = settings["sweep"]
 level_cfg = settings["level"]
 ref_cfg = settings["reference"]
 calib_cfg = settings["calibration"]
+save_cfg = settings["save"]
 freq_range = sweep_cfg["frequency_range"]
-regu_inside = 10 ** (-sweep_cfg["dynamic_db"] / 20)
+regu_within = 10 ** (-sweep_cfg["dynamic_db"] / 20)
 
 device = (device_cfg["input_device"], device_cfg["output_device"])
 out_channels = device_cfg["output_channels"]
@@ -37,6 +38,7 @@ in_channels = device_cfg["input_channels"]
 
 out_dir = Path("measurements")
 out_dir.mkdir(exist_ok=True)
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def play_rec(signal, out_ch, in_ch, level_db, clip_reduction_db, average=1):
@@ -60,6 +62,23 @@ def play_rec(signal, out_ch, in_ch, level_db, clip_reduction_db, average=1):
     return rec_sum / average * 10 ** (n_clip * clip_reduction_db / 20)
 
 
+def deconvolve(y, x):
+    """Regularized spectral deconvolution h = y * x^-1, as in AKdeconv.m."""
+    if x.n_samples < y.n_samples:
+        x = pf.dsp.pad_zeros(x, y.n_samples - x.n_samples)
+    inversion = pf.dsp.RegularizedSpectrumInversion.from_frequency_range(
+        x, freq_range, regularization_within=regu_within)
+    return y * inversion.invert
+
+
+def plot_and_save(signal, name):
+    if not settings["plot"]:
+        return
+    pf.plot.time_freq(signal)
+    plt.savefig(out_dir / f"measurement_{timestamp}_{name}.png")
+    plt.show()
+
+
 # --------------------------------------------------------- 1. excitation signal
 sweep = pf.signals.exponential_sweep_time(sweep_cfg["n_samples"], freq_range, sampling_rate=fs)
 excitation = np.concatenate([
@@ -67,6 +86,7 @@ excitation = np.concatenate([
     sweep.time[0],
     np.zeros(int(sweep_cfg["t_gap"] * fs)),
 ])
+plot_and_save(sweep, "excitation")
 
 # ------------------------------------------------------- 2. reference measurement
 reference_signal = None
@@ -88,9 +108,7 @@ if ref_cfg["type"]:
 
     if ref_cfg["type"] == "complex":
         reference_signal = pf.Signal(rec, fs)
-        latency_signal = pf.dsp.deconvolve(reference_signal, sweep, frequency_range=freq_range,
-                                            regu_inside=regu_inside)
-        latency_time = latency_signal.time[0]
+        latency_time = deconvolve(reference_signal, sweep).time[0]
     else:
         rec = np.roll(rec, -impulse_offset)
         reference_signal = pf.Signal(rec, fs)
@@ -98,6 +116,7 @@ if ref_cfg["type"]:
 
     latency = int(np.argmax(np.abs(latency_time[: int(0.5 * fs)])))
     print(f"latency: {latency} samples")
+    plot_and_save(reference_signal, "reference")
 
 # ---------------------------------------------------------- 3. level calibration
 calibrate_amplitude_per_pa = None
@@ -122,8 +141,7 @@ if calib_cfg["mode"]:
 
     # compensate for the frequency response of a 'complex' reference measurement
     if reference_signal is not None and ref_cfg["type"] == "complex":
-        tf = pf.dsp.deconvolve(reference_signal, sweep, frequency_range=freq_range,
-                                regu_inside=regu_inside)
+        tf = deconvolve(reference_signal, sweep)
         idx = np.argmin(np.abs(tf.frequencies - calib_cfg["frequency"]))
         calibrate_amplitude_per_pa /= np.abs(tf.freq[0, idx])
 
@@ -132,18 +150,19 @@ if calib_cfg["mode"]:
 # ----------------------------------------------------------------- 4. measure IRs
 channel_groups = [out_channels] if settings["channel_mode"] == "all" else [[ch] for ch in out_channels]
 irs = []
+raws = []
 
 for group in channel_groups:
     print(f"measuring output channel(s) {group}...")
     rec = play_rec(excitation, group, in_channels, level_cfg["output_db"],
                     level_cfg["clip_reduction_db"], level_cfg["average"])
     recorded = pf.Signal(rec.T, fs)
+    raws.append(recorded)
 
     if ref_cfg["type"] == "complex":
-        ir = pf.dsp.deconvolve(recorded, reference_signal, frequency_range=freq_range,
-                                regu_inside=regu_inside)
+        ir = deconvolve(recorded, reference_signal)
     else:
-        ir = pf.dsp.deconvolve(recorded, sweep, frequency_range=freq_range, regu_inside=regu_inside)
+        ir = deconvolve(recorded, sweep)
         if ref_cfg["type"] == "latency":
             ir = pf.dsp.time_shift(ir, -latency, mode="cyclic")
 
@@ -155,20 +174,17 @@ for group in channel_groups:
     irs.append(ir)
 
 ir = pf.Signal(np.concatenate([i.time for i in irs], axis=0), fs)
+plot_and_save(ir, "ir")
 
-timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-
-# --------------------------------------------------------------------- 5. plot
-if settings["plot"]:
-    pf.plot.time_freq(ir)
-    plt.savefig(out_dir / f"measurement_{timestamp}_ir.png")
-    plt.show()
-
-# --------------------------------------------------------------------- 6. save
+# --------------------------------------------------------------------- 5. save
 if not meta.get("soundcard"):
     meta["soundcard"] = f"out: {device_cfg['output_device']} / in: {device_cfg['input_device']}"
 
-data = {"sweep": sweep, "ir": ir, **{k: v for k, v in meta.items() if v is not None}}
+data = {"ir": ir, **{k: v for k, v in meta.items() if v is not None}}
+if save_cfg["excitation"]:
+    data["excitation"] = sweep
+if save_cfg["raw"]:
+    data["raw"] = pf.Signal(np.concatenate([r.time for r in raws], axis=0), fs)
 if reference_signal is not None:
     data["reference"] = reference_signal
 if calibration_signal is not None:

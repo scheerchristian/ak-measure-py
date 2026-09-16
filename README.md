@@ -8,9 +8,8 @@ recording.
 ## Setup
 
 ```
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+conda env create -f environment.yml
+conda activate ak-measure-py
 ```
 
 ## Configuration
