@@ -83,10 +83,10 @@ def main():
     if session_dir:
         session_dir.mkdir(parents=True, exist_ok=True)
 
-    def plot_and_save(signal, name):
+    def plot_and_save(signal, name, dB_time=True):
         if not settings["plot"]:
             return
-        pf.plot.time_freq(signal)
+        pf.plot.time_freq(signal, dB_time)
         plt.savefig(work_dir / f"measurement_{timestamp}_{name}.png")
         plt.show()
 
@@ -97,7 +97,7 @@ def main():
         sweep.time[0],
         np.zeros(int(sweep_cfg["t_gap"] * fs)),
     ])
-    plot_and_save(sweep, "excitation")
+    plot_and_save(sweep, "excitation", dB_time=False)
 
     # --------------------------------------------------- 2. reference measurement
     reference_signal = None
