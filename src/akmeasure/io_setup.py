@@ -11,9 +11,9 @@ import sounddevice as sd
 from akmeasure.config import load, save
 
 
-def refresh_channels(listbox, device_name, kind, selected):
+def refresh_channels(listbox, device_label, kind, selected):
     listbox.delete(0, "end")
-    n_channels = sd.query_devices(device_name)[f"max_{kind}_channels"]
+    n_channels = sd.query_devices(device_label)[f"max_{kind}_channels"]
     for ch in range(1, n_channels + 1):
         listbox.insert("end", ch)
         if ch in selected:
@@ -21,9 +21,14 @@ def refresh_channels(listbox, device_name, kind, selected):
 
 
 def main():
+    hostapis = sd.query_hostapis()
     devices = sd.query_devices()
-    out_devices = [d["name"] for d in devices if d["max_output_channels"] > 0]
-    in_devices = [d["name"] for d in devices if d["max_input_channels"] > 0]
+    # "name, host api" both disambiguates devices with the same name (e.g. a
+    # generic ALSA "jack" bridge vs. the real JACK host API) and is directly
+    # usable as sounddevice's device argument
+    labels = [f"{d['name']}, {hostapis[d['hostapi']]['name']}" for d in devices]
+    out_devices = [lbl for d, lbl in zip(devices, labels) if d["max_output_channels"] > 0]
+    in_devices = [lbl for d, lbl in zip(devices, labels) if d["max_input_channels"] > 0]
 
     cfg = load("device")
 
@@ -31,11 +36,14 @@ def main():
     root.title("AKmeasure I/O setup")
 
     def known_device(name, options):
-        return name if name in options else options[0]
+        for opt in options:
+            if name and (opt == name or opt.startswith(f"{name}, ")):
+                return opt
+        return options[0]
 
     tk.Label(root, text="Output device").grid(row=0, column=0, sticky="w")
     out_device = tk.StringVar(value=known_device(cfg.get("output_device"), out_devices))
-    out_combo = ttk.Combobox(root, textvariable=out_device, values=out_devices, width=50, state="readonly")
+    out_combo = ttk.Combobox(root, textvariable=out_device, values=out_devices, width=60, state="readonly")
     out_combo.grid(row=0, column=1, padx=5, pady=5)
 
     tk.Label(root, text="Output channels").grid(row=1, column=0, sticky="nw")
@@ -44,7 +52,7 @@ def main():
 
     tk.Label(root, text="Input device").grid(row=2, column=0, sticky="w")
     in_device = tk.StringVar(value=known_device(cfg.get("input_device"), in_devices))
-    in_combo = ttk.Combobox(root, textvariable=in_device, values=in_devices, width=50, state="readonly")
+    in_combo = ttk.Combobox(root, textvariable=in_device, values=in_devices, width=60, state="readonly")
     in_combo.grid(row=2, column=1, padx=5, pady=5)
 
     tk.Label(root, text="Input channels").grid(row=3, column=0, sticky="nw")
