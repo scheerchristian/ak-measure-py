@@ -97,7 +97,8 @@ def main():
         sweep.time[0],
         np.zeros(int(sweep_cfg["t_gap"] * fs)),
     ])
-    plot_and_save(sweep, "excitation", dB_time=False)
+    if sweep_cfg.get("plot"):
+        plot_and_save(sweep, "excitation", dB_time=False)
 
     # --------------------------------------------------- 2. reference measurement
     reference_signal = None
@@ -135,6 +136,7 @@ def main():
         print(f"latency: {latency} samples")
         if ref_cfg.get("plot"):
             plot_and_save(reference_signal, "reference")
+        input("Reference measurement done, reset the setup and press Enter when ready to measure...")
 
     # ---------------------------------------------------- 3. level calibration
     calibrate_amplitude_per_pa = None
