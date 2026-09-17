@@ -30,8 +30,11 @@ def main():
     root = tk.Tk()
     root.title("AKmeasure I/O setup")
 
+    def known_device(name, options):
+        return name if name in options else options[0]
+
     tk.Label(root, text="Output device").grid(row=0, column=0, sticky="w")
-    out_device = tk.StringVar(value=cfg.get("output_device", out_devices[0]))
+    out_device = tk.StringVar(value=known_device(cfg.get("output_device"), out_devices))
     out_combo = ttk.Combobox(root, textvariable=out_device, values=out_devices, width=50, state="readonly")
     out_combo.grid(row=0, column=1, padx=5, pady=5)
 
@@ -40,7 +43,7 @@ def main():
     out_channels.grid(row=1, column=1, sticky="w", padx=5)
 
     tk.Label(root, text="Input device").grid(row=2, column=0, sticky="w")
-    in_device = tk.StringVar(value=cfg.get("input_device", in_devices[0]))
+    in_device = tk.StringVar(value=known_device(cfg.get("input_device"), in_devices))
     in_combo = ttk.Combobox(root, textvariable=in_device, values=in_devices, width=50, state="readonly")
     in_combo.grid(row=2, column=1, padx=5, pady=5)
 

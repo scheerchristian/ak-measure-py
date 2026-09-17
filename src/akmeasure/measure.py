@@ -133,7 +133,8 @@ def main():
 
         latency = int(np.argmax(np.abs(latency_time[: int(0.5 * fs)])))
         print(f"latency: {latency} samples")
-        plot_and_save(reference_signal, "reference")
+        if ref_cfg.get("plot"):
+            plot_and_save(reference_signal, "reference")
 
     # ---------------------------------------------------- 3. level calibration
     calibrate_amplitude_per_pa = None
