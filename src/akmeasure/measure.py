@@ -74,11 +74,20 @@ def main():
     out_dir.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    # a session bundles the reference/calibration with everything measured
+    # under it: reused from settings.session, or freshly created below
+    reuse_session = bool(settings.get("session"))
+    session_dir = Path(settings["session"]) if reuse_session else (
+        out_dir / "sessions" / timestamp if (ref_cfg["type"] or calib_cfg["mode"]) else None)
+    work_dir = session_dir if session_dir else out_dir
+    if session_dir:
+        session_dir.mkdir(parents=True, exist_ok=True)
+
     def plot_and_save(signal, name):
         if not settings["plot"]:
             return
         pf.plot.time_freq(signal)
-        plt.savefig(out_dir / f"measurement_{timestamp}_{name}.png")
+        plt.savefig(work_dir / f"measurement_{timestamp}_{name}.png")
         plt.show()
 
     # ----------------------------------------------------- 1. excitation signal
@@ -91,12 +100,11 @@ def main():
     plot_and_save(sweep, "excitation")
 
     # --------------------------------------------------- 2. reference measurement
-    session_dir = settings.get("session")
     reference_signal = None
     latency = 0
 
-    if session_dir:
-        session = pf.io.read(Path(session_dir) / "session.far")
+    if reuse_session:
+        session = pf.io.read(session_dir / "session.far")
         reference_signal = session.get("reference")
         latency = session.get("latency", 0)
         if reference_signal is not None:
@@ -131,7 +139,7 @@ def main():
     calibrate_amplitude_per_pa = None
     calibration_signal = None
 
-    if session_dir:
+    if reuse_session:
         calibrate_amplitude_per_pa = session.get("calibrate_amplitude_per_pa")
         calibration_signal = session.get("calibration")
         if calibrate_amplitude_per_pa is not None:
@@ -163,9 +171,7 @@ def main():
         print(f"sensitivity: {20 * np.log10(calibrate_amplitude_per_pa):.2f} dBFS per Pascal")
 
     # save a new session so this reference/calibration can be reused later
-    if not session_dir and (reference_signal is not None or calibrate_amplitude_per_pa is not None):
-        session_dir = out_dir / "sessions" / timestamp
-        session_dir.mkdir(parents=True)
+    if not reuse_session and session_dir:
         session_data = {}
         if reference_signal is not None:
             session_data["reference"] = reference_signal
@@ -215,7 +221,7 @@ def main():
         if session_dir:
             data["session"] = str(session_dir)
 
-        file = out_dir / f"{name}.far"
+        file = work_dir / f"{name}.far"
         pf.io.write(file, **data)
         print(f"saved to {file}")
 

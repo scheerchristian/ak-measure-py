@@ -58,10 +58,12 @@ akmeasure
 (equivalently: `python3 -m akmeasure.measure`)
 
 In `channel_mode: single`, each output channel (source) is measured on its
-own and saved to its own file, `measurements/measurement_<timestamp>_src<n>.far`,
-with the `ir` channels representing the input channels. In `channel_mode:
-all`, all output channels play at once and everything is saved to a single
-`measurements/measurement_<timestamp>.far`.
+own and saved to its own file, `measurement_<timestamp>_src<n>.far`, with
+the `ir` channels representing the input channels. In `channel_mode: all`,
+all output channels play at once and everything is saved to a single
+`measurement_<timestamp>.far`. These files land in `measurements/`, or in
+`measurements/sessions/<session-timestamp>/` when a reference/calibration
+session is involved (see below).
 
 Each file is a pyfar native `.far` file (readable with `pyfar.io.read`)
 containing the `ir` plus, depending on `settings.yaml`, the excitation
@@ -69,12 +71,15 @@ sweep and the raw (non-deconvolved) recording. If `plot: true`, the
 excitation, reference and each IR are also plotted and saved as PNGs next
 to the `.far` files.
 
-### Reusing a reference/calibration across runs
+### Sessions: reusing a reference/calibration across runs
 
-If `reference.type` and/or `calibration.mode` are enabled, they're measured
-live and saved to `measurements/sessions/<timestamp>/session.far`; the path
-is printed at the end of that run. Each measurement file that used it gets
-a `session` field pointing there instead of embedding a copy.
+Whenever `reference.type` and/or `calibration.mode` are enabled, that run's
+*entire* output moves into `measurements/sessions/<timestamp>/` instead of
+flat `measurements/` — the reference/calibration measurement itself
+(`session.far`), the excitation/reference plots, and the measured `.far`
+files and their `ir` plots. The session path is printed at the end of the
+run. (With neither enabled, everything stays flat in `measurements/`, as
+before.)
 
 To reuse that reference/calibration for later runs without redoing the
 physical measurement (e.g. the calibrator tone, or the reference sweep),
@@ -85,5 +90,8 @@ session: measurements/sessions/20260917_101607
 ```
 
 While `session` is set, `akmeasure` loads the reference/calibration from
-that folder instead of measuring them again. Set it back to `null` (or
-remove it) to measure and cache a fresh session.
+that folder instead of measuring them again, and each new run's `.far`
+file (and its `ir` plot) is added into that same session folder alongside
+the ones already there. Each measurement `.far` file also gets a `session`
+field pointing at the folder it belongs to. Set `session` back to `null`
+(or remove it) to measure and cache a fresh session instead.
