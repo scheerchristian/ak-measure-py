@@ -17,6 +17,11 @@ channel_mode: single        # single: measure output_channels one after another
 subsonic_filter: true       # 20 Hz high-pass on the resulting IR
 plot: true                  # plot excitation, reference and IR, and save the plots
 
+# path to a previous measurements/sessions/<timestamp> folder to reuse its
+# reference/calibration instead of measuring them again (null: measure live
+# below and save a new session for later reuse)
+session:
+
 save:
   excitation: true          # save the excitation sweep as part of the .far file
   raw: false                # also save the raw (non-deconvolved) recordings

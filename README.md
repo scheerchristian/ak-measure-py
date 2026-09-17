@@ -65,6 +65,25 @@ all`, all output channels play at once and everything is saved to a single
 
 Each file is a pyfar native `.far` file (readable with `pyfar.io.read`)
 containing the `ir` plus, depending on `settings.yaml`, the excitation
-sweep, the raw (non-deconvolved) recording, and the reference/calibration
-recordings. If `plot: true`, the excitation, reference and each IR are also
-plotted and saved as PNGs next to the `.far` files.
+sweep and the raw (non-deconvolved) recording. If `plot: true`, the
+excitation, reference and each IR are also plotted and saved as PNGs next
+to the `.far` files.
+
+### Reusing a reference/calibration across runs
+
+If `reference.type` and/or `calibration.mode` are enabled, they're measured
+live and saved to `measurements/sessions/<timestamp>/session.far`; the path
+is printed at the end of that run. Each measurement file that used it gets
+a `session` field pointing there instead of embedding a copy.
+
+To reuse that reference/calibration for later runs without redoing the
+physical measurement (e.g. the calibrator tone, or the reference sweep),
+set it explicitly in `settings.yaml`:
+
+```yaml
+session: measurements/sessions/20260917_101607
+```
+
+While `session` is set, `akmeasure` loads the reference/calibration from
+that folder instead of measuring them again. Set it back to `null` (or
+remove it) to measure and cache a fresh session.

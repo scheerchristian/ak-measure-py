@@ -91,10 +91,17 @@ def main():
     plot_and_save(sweep, "excitation")
 
     # --------------------------------------------------- 2. reference measurement
+    session_dir = settings.get("session")
     reference_signal = None
     latency = 0
 
-    if ref_cfg["type"]:
+    if session_dir:
+        session = pf.io.read(Path(session_dir) / "session.far")
+        reference_signal = session.get("reference")
+        latency = session.get("latency", 0)
+        if reference_signal is not None:
+            print(f"reference loaded from session ({ref_cfg['type']}, latency: {latency} samples)")
+    elif ref_cfg["type"]:
         print(f"reference measurement ({ref_cfg['type']})...")
         if ref_cfg["type"] == "latency":
             impulse_offset = 64
@@ -124,7 +131,12 @@ def main():
     calibrate_amplitude_per_pa = None
     calibration_signal = None
 
-    if calib_cfg["mode"]:
+    if session_dir:
+        calibrate_amplitude_per_pa = session.get("calibrate_amplitude_per_pa")
+        calibration_signal = session.get("calibration")
+        if calibrate_amplitude_per_pa is not None:
+            print(f"calibration loaded from session: {20 * np.log10(calibrate_amplitude_per_pa):.2f} dBFS per Pascal")
+    elif calib_cfg["mode"]:
         print(f"level calibration ({calib_cfg['mode']})...")
         if calib_cfg["mode"] == "measured":
             input("Apply calibrator to microphone and press Enter...")
@@ -148,6 +160,21 @@ def main():
             calibrate_amplitude_per_pa /= np.abs(tf.freq[0, idx])
 
         print(f"sensitivity: {20 * np.log10(calibrate_amplitude_per_pa):.2f} dBFS per Pascal")
+
+    # save a new session so this reference/calibration can be reused later
+    if not session_dir and (reference_signal is not None or calibrate_amplitude_per_pa is not None):
+        session_dir = out_dir / "sessions" / timestamp
+        session_dir.mkdir(parents=True)
+        session_data = {}
+        if reference_signal is not None:
+            session_data["reference"] = reference_signal
+            session_data["latency"] = latency
+        if calibrate_amplitude_per_pa is not None:
+            session_data["calibrate_amplitude_per_pa"] = calibrate_amplitude_per_pa
+            if calibration_signal is not None:
+                session_data["calibration"] = calibration_signal
+        pf.io.write(session_dir / "session.far", **session_data)
+        print(f'session saved to {session_dir} (set settings.yaml session: "{session_dir}" to reuse)')
 
     # ----------------------------------------------- 4. measure and save per source
     # each output channel group (source) gets its own .far file, with the ir
@@ -184,10 +211,8 @@ def main():
             data["excitation"] = sweep
         if save_cfg["raw"]:
             data["raw"] = pf.Signal(takes, fs)
-        if reference_signal is not None:
-            data["reference"] = reference_signal
-        if calibration_signal is not None:
-            data["calibration"] = calibration_signal
+        if session_dir:
+            data["session"] = str(session_dir)
 
         file = out_dir / f"{name}.far"
         pf.io.write(file, **data)
