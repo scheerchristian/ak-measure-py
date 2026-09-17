@@ -4,7 +4,7 @@ contact: Christian Scheer
 room: Asimov Lab TU Berlin
 temperature: 20
 humidity: 47
-soundcard:
+soundcard: Fireface UCXII
 amplifier: Soundcard's internal
 mic_preamp: Soundcard's internal
 source: Genelec 8331 AP

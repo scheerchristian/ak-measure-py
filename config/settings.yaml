@@ -1,14 +1,15 @@
 sampling_rate: 48000
 
 sweep:
-  n_samples: 262144        # sweep length in samples
+  n_samples: 262144         # sweep length in samples
   frequency_range: [20, 20000]
   t_start: 0.06             # silence before sweep in s
   t_gap: 2.0                # silence after sweep in s (> reverberation time)
   dynamic_db: 40            # deconvolution regularization dynamic in dB
+  plot: false
 
 level:
-  output_db: -40
+  output_db: -24
   clip_reduction_db: 3      # automatic level reduction on clipping, compensated afterwards
   average: 1
 
@@ -24,7 +25,7 @@ session:
 
 save:
   excitation: true          # save the excitation sweep as part of the .far file
-  raw: false                # also save the raw (non-deconvolved) recordings
+  raw: true                # also save the raw (non-deconvolved) recordings
 
 # false, 'latency' (measure and correct system delay) or 'complex' (measure
 # and correct full transfer function of the reference channel)
@@ -32,8 +33,9 @@ reference:
   type: false
   output_channel: 2
   input_channel: 2
-  output_level_db: -10
+  output_level_db: 0
   clip_reduction_db: 6
+  plot: true               # plot the reference recording (only used if plot: true above)
 
 # false, 'numeric' (enter the known sensitivity) or 'measured' (record a
 # calibrator tone and derive the sensitivity from it)
