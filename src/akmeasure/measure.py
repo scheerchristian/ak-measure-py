@@ -148,6 +148,7 @@ def main():
             level_in = np.sqrt(np.mean(rec**2)) * np.sqrt(2)
             calibrate_amplitude_per_pa = level_in / (2e-5 * 10 ** (calib_cfg["level_db_spl"] / 20))
             calibration_signal = pf.Signal(rec, fs)
+            input("Remove the calibrator and press Enter when ready to measure...")
         elif calib_cfg["mode"] == "numeric":
             calibrate_amplitude_per_pa = 10 ** (calib_cfg["numeric_dbfs_per_pa"] / 20)
         else:
